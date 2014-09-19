@@ -2,15 +2,17 @@ import numpy as np
 import cv2, time, os, sys
 import flipper.flipper as fp
 import matplotlib.pyplot as plt
-filepath = "/home/jeffz/flipper/data/test.avi"
-display_count = 0
-DISPLAY_COUNT = 15
-DETECTION_SYMBOL = {'L': np.array([[-2,0],[0,2],[0,1],[2,1],[2,-1],[0,-1],[0,-2]]), 'R':np.array([[2,0],[0,2],[0,1],[-2,1],[-2,-1],[0,-1],[0,-2]])}
-DETECTION_SYMBOL_OFFSET = {'L':[.2,.2], 'R':[.8,.2]}
+
+
 
 cap = cv2.VideoCapture(-1)
 detector = fp.FlipDetector()
 
+
+display_count = 0
+DISPLAY_COUNT = 15
+DETECTION_SYMBOL = {'R': np.array([[-2,0],[0,2],[0,1],[2,1],[2,-1],[0,-1],[0,-2]])/10., 'L':np.array([[2,0],[0,2],[0,1],[-2,1],[-2,-1],[0,-1],[0,-2]])/10.}
+DETECTION_SYMBOL_OFFSET = {'R':[.2,.2], 'L':[.8,.2]}
 plt.ion()
 fig, ax = plt.subplots()
 plot, = ax.plot([], [], lw=2)
@@ -40,21 +42,13 @@ while(cap.isOpened()):
     else:
         display_count = display_count - 1
     
+    gray = gray * 0.1
     if display_count > 0:
-        cv2.fillConvexPoly(frame, (DETECTION_SYMBOL[detection]*gray.shape[0]/10 + np.array([DETECTION_SYMBOL_OFFSET[detection] for i in range(len(DETECTION_SYMBOL[detection]))])*gray.shape[1]).astype(int), [0,255,0])
+        cv2.fillConvexPoly(gray, (DETECTION_SYMBOL[detection]*gray.shape[0] + np.array([DETECTION_SYMBOL_OFFSET[detection] for i in range(len(DETECTION_SYMBOL[detection]))])*gray.shape[1]).astype(int), [0,255,0])
 
-    cv2.imshow('frame', cv2.resize(frame, dsize=(1000, 750)))
+    cv2.imshow('frame', cv2.resize(gray, dsize=(1000, 750)))
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 print float(time.time() - timer)
 cap.release()
 cv2.destroyAllWindows()
-
-#print detector.current_input
-#print detector.DIFF_FILTER
-#plt.plot(detector.buffer[0][0])
-#plt.plot(detector.buffer[0][149])
-#plt.show()
-#plt.plot(detector.buffer[1][0])
-#plt.plot(detector.buffer[1][149])
-#plt.show()

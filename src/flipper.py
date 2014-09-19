@@ -4,6 +4,9 @@ import time, os, sys
 import scipy.signal as ss
 
 class FlipDetector:
+#######This calss handles the algorithm part. It takes in one frame at a time through capture(), and stores differential images in its buffer. 
+#######Capture outputs a 'L' or 'M' or 'R' indicating movement direction.
+#######To get debugging information, call get_detection_data() to retrieve the 1D time-filtered data
     def __init__(self, DBG = False):
         self.TARGET_RESOLUTION = (160, 240) ###The target resolution of image processing. The actual process_resolution will be decided by decide_image_res() method.
         self.process_resolution = self.TARGET_RESOLUTION ###The resolution at which the images will be processed at. Input images are first compressed to this resolution.
@@ -18,8 +21,8 @@ class FlipDetector:
         self.FILTER_H_WIDTH = 0.01 ###half width of filter in terms of fraction of image width
         self.DIFF_FILTER = [[1]] ###place holder
         self.TIME_FILTER = np.ones(10)/10
-        self.THRESHOLD = 10000 ###time-filtered value in oned_stream larger than this will be marked as detection
-        self.BLIND_PERIOD = 90 ###number of frames after a detection that no detection will be marked
+        self.THRESHOLD = 100000 ###time-filtered value in oned_stream larger than this will be marked as detection
+        self.BLIND_PERIOD = 60 ###number of frames after a detection that no detection will be marked
         self.last_detection = - self.BLIND_PERIOD - 1 ###the image_count at which last detection was made
         self.DBG = DBG
         
@@ -95,3 +98,6 @@ class FlipDetector:
         self.fill_buffer(image)
         self.process_buffer()
         return self.flip()
+
+
+class 
