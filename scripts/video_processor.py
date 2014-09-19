@@ -1,26 +1,32 @@
 import numpy as np
-import cv2, time,os
+import cv2, time, os, sys
 import flipper.flipper as fp
 import matplotlib.pyplot as plt
 filepath = "/home/jeffz/flipper/data/test.avi"
-plt.ion()
+display_count = 0
+DISPLAY_COUNT = 15
+DETECTION_SYMBOL = {'L': np.array([[-2,0],[0,2],[0,1],[2,1],[2,-1],[0,-1],[0,-2]]), 'R':np.array([[2,0],[0,2],[0,1],[-2,1],[-2,-1],[0,-1],[0,-2]])}
+DETECTION_SYMBOL_OFFSET = {'L':[.1,.1], 'R':[.9,.1]}
+
 cap = cv2.VideoCapture(filepath)
 detector = fp.FlipDetector()
 
-
-#while(cap.isOpened()):
-timer = time.time()
-display_count = 0
-DISPLAY_COUNT = 15
+plt.ion()
 fig, ax = plt.subplots()
 plot, = ax.plot([], [], lw=2)
 plt.ylim([-500000,500000])
-for i in range(800):
+
+timer = time.time()
+i = 0
+while(cap.isOpened()):
+#for i in range(800):
+    i = i + 1
     ret, frame = cap.read()
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     signal = detector.capture(gray)
-    print signal
+    print "\bFRAME %i: %s"%(detector.image_count,signal)
+    sys.stdout.flush()
     if i%5 == 0:
         data = detector.get_detection_data()
         plot.set_data(range(len(data)), data)
@@ -33,10 +39,7 @@ for i in range(800):
         display_count = display_count - 1
     
     if display_count > 0:
-        if detection == 'L':
-            cv2.circle(frame, (0, gray.shape[0]/2), gray.shape[0]/5, [0,255,0], thickness = -1)
-        elif detection == 'R':
-            cv2.circle(frame, (gray.shape[1], gray.shape[0]/2), gray.shape[0]/5, [0,255,0], thickness = -1)
+        cv2.fillConvexPoly(frame, (DETECTION_SYMBOL[detection]*gray.shape[0]/20 + np.array([DETECTION_SYMBOL_OFFSET[detection] for i in range(len(DETECTION_SYMBOL[detection]))])*gray.shape[1]).astype(int), [0,255,0])
 
     cv2.imshow('frame', frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
