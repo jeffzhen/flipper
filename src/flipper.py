@@ -15,8 +15,9 @@ class FlipDetector:
         self.buffer = None ###a buffer for storing intermidiate frames.
         self.oned_stream = np.zeros(600, dtype='float32') ###we extract one flip_value out of each differential image and put it into this 1D stream. The final flip decision will be based on this 1D array. 600 works for roughly 20 seconds which should be enough for any future design
         self.image_count = 0 ###number of inputs handled
-        self.FILTER_H_WIDTH = 0.005 ###half width of filter in terms of fraction of image width
+        self.FILTER_H_WIDTH = 0.01 ###half width of filter in terms of fraction of image width
         self.DIFF_FILTER = [[1]] ###place holder
+        self.TIME_FILTER = np.ones(10)/10
         self.DBG = DBG
         
     def decide_image_res(self, input_shape):###decide what resolution to use for all the computation and create filters and buffers accordingly
@@ -41,9 +42,9 @@ class FlipDetector:
         self.image_count = self.image_count + 1
         
         if type(self.previous_input).__module__  == np.__name__:
-
+            print "F%i: filling buffer frame %i"%(self.image_count, self.buffer_ptr)
             dsize = (self.process_resolution[1],self.process_resolution[0]) ###dsize has opposite convention as array dimensions
-            self.buffer[self.buffer_ptr] = cv2.resize(self.current_input, dsize = dsize) - cv2.resize(self.previous_input, dsize = dsize)
+            self.buffer[self.buffer_ptr] = cv2.resize(self.current_input, dsize = dsize).astype('float32') - cv2.resize(self.previous_input, dsize = dsize).astype('float32')
             self.buffer_ptr = (self.buffer_ptr + 1) % self.BUFFER_LEN
         
 
@@ -59,7 +60,7 @@ class FlipDetector:
         self.oned_stream[-1] = flip_value
     
     def flip(self): #analyse oned_stream return 'L' for left, 'R' for right, and 0 otherwise
-        return self.oned_stream[-30:]
+        return ss.convolve(self.oned_stream, self.TIME_FILTER, mode='valid')[-self.image_count:]
         
     def capture(self, image):
         ###input check
