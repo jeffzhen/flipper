@@ -18,6 +18,9 @@ class FlipDetector:
         self.FILTER_H_WIDTH = 0.01 ###half width of filter in terms of fraction of image width
         self.DIFF_FILTER = [[1]] ###place holder
         self.TIME_FILTER = np.ones(10)/10
+        self.THRESHOLD = 10000 ###time-filtered value in oned_stream larger than this will be marked as detection
+        self.BLIND_PERIOD = 90 ###number of frames after a detection that no detection will be marked
+        self.last_detection = - self.BLIND_PERIOD - 1 ###the image_count at which last detection was made
         self.DBG = DBG
         
     def decide_image_res(self, input_shape):###decide what resolution to use for all the computation and create filters and buffers accordingly
@@ -42,7 +45,8 @@ class FlipDetector:
         self.image_count = self.image_count + 1
         
         if type(self.previous_input).__module__  == np.__name__:
-            print "F%i: filling buffer frame %i"%(self.image_count, self.buffer_ptr)
+            if self.DBG:
+                print "F%i: filling buffer frame %i"%(self.image_count, self.buffer_ptr)
             dsize = (self.process_resolution[1],self.process_resolution[0]) ###dsize has opposite convention as array dimensions
             self.buffer[self.buffer_ptr] = cv2.resize(self.current_input, dsize = dsize).astype('float32') - cv2.resize(self.previous_input, dsize = dsize).astype('float32')
             self.buffer_ptr = (self.buffer_ptr + 1) % self.BUFFER_LEN
@@ -59,7 +63,19 @@ class FlipDetector:
         self.oned_stream[:-1] = self.oned_stream[1:]
         self.oned_stream[-1] = flip_value
     
-    def flip(self): #analyse oned_stream return 'L' for left, 'R' for right, and 0 otherwise
+    def flip(self): #analyse oned_stream return 'L' for left, 'R' for right, and 'M' otherwise
+        tfiltered = ss.convolve(self.oned_stream[-len(self.TIME_FILTER):], self.TIME_FILTER, mode='valid')[0]
+        if self.image_count > self.last_detection + self.BLIND_PERIOD:
+            if tfiltered > self.THRESHOLD:
+                self.last_detection = self.image_count
+                return 'L'
+            elif tfiltered < -self.THRESHOLD:
+                self.last_detection = self.image_count
+                return 'R'
+        return 'M'
+            
+        
+    def get_detection_data(self):
         return ss.convolve(self.oned_stream, self.TIME_FILTER, mode='valid')[-self.image_count:]
         
     def capture(self, image):
