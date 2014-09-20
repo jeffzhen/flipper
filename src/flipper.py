@@ -104,7 +104,7 @@ class FlipDetector:
 class CamProcessor:
 #######This class automatically connects to an available camera and feeds its images into a FlipDetector. 
 #######It draws the 1D signal curve that is used by FlipDetector for deciding movements.
-    def __init__(self):
+    def __init__(self, cam_source = 0):
         self.cap = None###video capture object that will be started in start_cap
         self.detector = FlipDetector()###FlipDetector handles all the algorithms
         self.frame = None###current fram from cam that is being processed
@@ -117,9 +117,10 @@ class CamProcessor:
         self.detection = None###the latest detection of 'L' or 'R'
         self.DRAW_INTERVAL = 5###number of frame interval at which the debugging 1d data curve is drawn.
         self.PLOT_SIZE = 1###an arbitrary relative linear scale. change this if you want to tweak the size of the 1d dta curve's size
+        self.CAM_SOURCE = cam_source
     
     def start_cap(self):###start video capture object
-        self.cap = cv2.VideoCapture(-1)
+        self.cap = cv2.VideoCapture(self.CAM_SOURCE)
         
        
     def run(self):
