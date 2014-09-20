@@ -21,11 +21,13 @@ class FlipDetector:
         self.oned_stream = np.zeros(600, dtype='float32') ###we extract one flip_value out of each differential image and put it into this 1D stream. The final flip decision will be based on this 1D array. 600 works for roughly 20 seconds which should be enough for any future design
         self.image_count = 0 ###number of inputs handled
         self.FILTER_H_WIDTH = 0.01 ###half width of filter in terms of fraction of image width
-        self.DIFF_FILTER = [[1]] ###place holder
+        self.DIFF_FILTER = [[1]] ###place holder. Initiated in decide_image_res()
         self.TIME_FILTER = np.ones(10)/10
-        self.THRESHOLD = 100 ###time-filtered value in oned_stream larger than this will be marked as detection
-        self.BLIND_PERIOD = 40 ###number of frames after a detection that no detection will be marked #!#improve by setting time and using FPS info
+        self.THRESHOLD = 20 ###time-filtered value in oned_stream larger than this will be marked as detection
+        self.SILENCE_THRESHOLD = .5 ###time-filtered value in oned_stream smaller than this will be marked as silence
+        self.BLIND_PERIOD = 20 ###number of frames after a detection that no detection will be marked #!#improve by setting time and using FPS info
         self.last_detection = - self.BLIND_PERIOD - 1 ###the image_count at which last detection was made
+        self.last_silence = self.last_detection + 1 ###the image_count at which last silence was detected
         self.DBG = DBG
 
     def estimate_FPS(self):
@@ -48,7 +50,7 @@ class FlipDetector:
             self.buffer = np.empty((self.BUFFER_LEN, self.process_resolution[0], self.process_resolution[1]), dtype = 'float32')
             
             
-    def fill_buffer(self, image):###compute the normalized differential image and put it into buffer.
+    def fill_buffer(self, image):###compute the normalized differential image and put it into buffer. #!#improve by applying center-dominant filter to focus on face
         self.previous_input = self.current_input
         self.current_input = image ###if memory is of concern this is not necessary
         self.image_count = self.image_count + 1
@@ -74,7 +76,13 @@ class FlipDetector:
     
     def flip(self): #analyse oned_stream return 'L' for left, 'R' for right, and 'M' otherwise
         tfiltered = ss.convolve(self.oned_stream[-len(self.TIME_FILTER):], self.TIME_FILTER, mode='valid')[0]
-        if self.image_count > self.last_detection + self.BLIND_PERIOD:
+        
+        if abs(tfiltered) < self.SILENCE_THRESHOLD:
+            self.last_silence = self.image_count
+            return 'M'
+            
+        
+        if self.last_silence > self.last_detection and self.image_count > self.last_detection + self.BLIND_PERIOD:###no detection for BLIND_PERIOD after any detection
             if tfiltered > self.THRESHOLD:
                 self.last_detection = self.image_count
                 return 'L'

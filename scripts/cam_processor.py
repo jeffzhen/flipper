@@ -5,7 +5,7 @@ import flipper.flipper as fp
 import matplotlib.pyplot as plt
 import sys
 
-show_camera_image = False
+show_camera_image = True
 if len(sys.argv) > 1:
     cam_source = int(sys.argv[1])
     print "Using User Choice Camera #%i"%cam_source
