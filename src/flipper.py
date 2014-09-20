@@ -108,6 +108,7 @@ class CamProcessor:
         self.cap = None###video capture object that will be started in start_cap
         self.detector = FlipDetector()###FlipDetector handles all the algorithms
         self.frame = None###current fram from cam that is being processed
+        self.frame_count = 0 ###count the number of frames captured
         self.DISPLAY_COUNT = 15###Number of frames to display the symbol when a detection is made. Without this, a detection will only flash up for 1 frame and not noticeable. This is purely cosmetic and does not affect the intrinsic blind period in the FlipDetector's algorithm
         self.display_count = 0###a counter that decreases from DISPLAY_COUNT to 0 after a detection. DETECTION_SYMBOL is displayed when this is positive.
         self.DETECTION_SYMBOL = {'L': np.array([[-2,0],[0,2],[0,1],[2,1],[2,-1],[0,-1],[0,-2]])/10., 'R':np.array([[2,0],[0,2],[0,1],[-2,1],[-2,-1],[0,-1],[0,-2]])/10.}###shape of the symbol to indicate left or right
@@ -118,7 +119,8 @@ class CamProcessor:
         self.DRAW_INTERVAL = 5###number of frame interval at which the debugging 1d data curve is drawn.
         self.PLOT_SIZE = 1###an arbitrary relative linear scale. change this if you want to tweak the size of the 1d dta curve's size
         self.CAM_SOURCE = cam_source
-    
+        self.START_TIME = 0.
+        
     def start_cap(self):###start video capture object
         self.cap = cv2.VideoCapture(self.CAM_SOURCE)
         
@@ -134,10 +136,11 @@ class CamProcessor:
         plt.ylim([-2000000, 2000000])
         
         #start while loop
-        i = 0
+        self.frame_count = 0
+        self.START_TIME = time.time()
         while(self.cap.isOpened()):
             try:
-                i = i + 1
+                self.frame_count = self.frame_count + 1
                 
                 ####capture
                 ret, self.frame = self.cap.read()
@@ -146,11 +149,11 @@ class CamProcessor:
                 ####feed into FlipDetector
                 signal = self.detector.capture(gray)
                 ###draw data curve for debugging
-                if i%self.DRAW_INTERVAL == 0:
+                if self.frame_count%self.DRAW_INTERVAL == 0:
                     data = self.detector.get_detection_data()
                     self.plot.set_data(np.arange(len(data)) + self.detector.image_count - len(data), data)
                     plt.xlim([self.detector.image_count-len(data), self.detector.image_count])
-                    plt.title("FRAME %i: %s"%(self.detector.image_count,signal))
+                    plt.title("FRAME %i: %s. FPS = %i"%(self.detector.image_count, signal, self.estimate_FPS()))
                     self.fig.set_size_inches(gray.shape[1]/100.*self.PLOT_SIZE, gray.shape[0]/100.*self.PLOT_SIZE)
                     plt.draw()
                 ###display symbols and camera images
@@ -175,7 +178,10 @@ class CamProcessor:
             
         ###final display. We flip the cameraso it's mirror image and intuitive
         cv2.imshow('frame', cv2.resize(cv2.flip(self.frame, 1), dsize=(1000, 750)))
-            
+    
+    def estimate_FPS(self):
+        return self.frame_count/(float(time.time()) - self.START_TIME)
+    
     def stop(self):
         self.cap.release()
         cv2.destroyAllWindows() 
