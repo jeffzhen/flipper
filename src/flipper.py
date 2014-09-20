@@ -25,7 +25,7 @@ class FlipDetector:
         self.TIME_FILTER = np.ones(10)/10
         self.THRESHOLD = 20 ###time-filtered value in oned_stream larger than this will be marked as detection
         self.SILENCE_THRESHOLD = .5 ###time-filtered value in oned_stream smaller than this will be marked as silence
-        self.BLIND_PERIOD = 20 ###number of frames after a detection that no detection will be marked #!#improve by setting time and using FPS info
+        self.BLIND_PERIOD = 1 ###number of seconds after a detection that no detection will be marked
         self.last_detection = - self.BLIND_PERIOD - 1 ###the image_count at which last detection was made
         self.last_silence = self.last_detection + 1 ###the image_count at which last silence was detected
         self.DBG = DBG
@@ -82,7 +82,7 @@ class FlipDetector:
             return 'M'
             
         
-        if self.last_silence > self.last_detection and self.image_count > self.last_detection + self.BLIND_PERIOD:###no detection for BLIND_PERIOD after any detection
+        if self.last_silence > self.last_detection and self.image_count > self.last_detection + self.BLIND_PERIOD * self.estimate_FPS():###no detection for BLIND_PERIOD after any detection
             if tfiltered > self.THRESHOLD:
                 self.last_detection = self.image_count
                 return 'L'
