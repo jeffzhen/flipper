@@ -5,13 +5,14 @@ import scipy.signal as ss
 import matplotlib.pyplot as plt
 
 class FlipDetector:
-#######This calss handles the algorithm part. It takes in one frame at a time through capture(), and stores differential images in its buffer. 
+#######This calss handles the algorithm part. It takes in one frame at a time through capture(), and stores normalized differential images in its buffer. 
 #######Capture outputs a 'L' or 'M' or 'R' indicating movement direction.
 #######To get debugging information, call get_detection_data() to retrieve the 1D time-filtered data
     def __init__(self, DBG = False):
         self.TARGET_RESOLUTION = (160, 240) ###The target resolution of image processing. The actual process_resolution will be decided by decide_image_res() method.
         self.process_resolution = self.TARGET_RESOLUTION ###The resolution at which the images will be processed at. Input images are first compressed to this resolution.
         self.input_resolution = None ###The resolution at which the images are inputed. I assume this doesn't change.
+        self.START_TIME = 0. ###the time of the first input frame, as returned by time.time()
         self.current_input = None ###store an unchanged image exactly as it was inputed
         self.previous_input = None ###store an unchanged image exactly as it was inputed
         self.BUFFER_LEN = 2 ###number of intermidiate frames to store.
@@ -22,10 +23,14 @@ class FlipDetector:
         self.FILTER_H_WIDTH = 0.01 ###half width of filter in terms of fraction of image width
         self.DIFF_FILTER = [[1]] ###place holder
         self.TIME_FILTER = np.ones(10)/10
-        self.THRESHOLD = 100000 ###time-filtered value in oned_stream larger than this will be marked as detection
-        self.BLIND_PERIOD = 60 ###number of frames after a detection that no detection will be marked
+        self.THRESHOLD = 100 ###time-filtered value in oned_stream larger than this will be marked as detection
+        self.BLIND_PERIOD = 40 ###number of frames after a detection that no detection will be marked #!#improve by setting time and using FPS info
         self.last_detection = - self.BLIND_PERIOD - 1 ###the image_count at which last detection was made
         self.DBG = DBG
+
+    def estimate_FPS(self):
+        return self.image_count/(float(time.time()) - self.START_TIME)
+  
         
     def decide_image_res(self, input_shape):###decide what resolution to use for all the computation and create filters and buffers accordingly
         self.input_resolution = input_shape
@@ -43,7 +48,7 @@ class FlipDetector:
             self.buffer = np.empty((self.BUFFER_LEN, self.process_resolution[0], self.process_resolution[1]), dtype = 'float32')
             
             
-    def fill_buffer(self, image):###compute the differential image and put it into buffer.
+    def fill_buffer(self, image):###compute the normalized differential image and put it into buffer.
         self.previous_input = self.current_input
         self.current_input = image ###if memory is of concern this is not necessary
         self.image_count = self.image_count + 1
@@ -52,7 +57,7 @@ class FlipDetector:
             if self.DBG:
                 print "F%i: filling buffer frame %i"%(self.image_count, self.buffer_ptr)
             dsize = (self.process_resolution[1],self.process_resolution[0]) ###dsize has opposite convention as array dimensions
-            self.buffer[self.buffer_ptr] = cv2.resize(self.current_input, dsize = dsize).astype('float32') - cv2.resize(self.previous_input, dsize = dsize).astype('float32')
+            self.buffer[self.buffer_ptr] = (cv2.resize(self.current_input, dsize = dsize).astype('float32') - cv2.resize(self.previous_input, dsize = dsize).astype('float32')) / np.mean(cv2.resize(self.current_input, dsize = dsize).astype('float32'))
             self.buffer_ptr = (self.buffer_ptr + 1) % self.BUFFER_LEN
         
 
@@ -60,10 +65,10 @@ class FlipDetector:
         if self.image_count < 3:###need two differential frames meaning 3 input frames
             return
         
-        bufferptr1 = (self.buffer_ptr - 1) % self.BUFFER_LEN
-        bufferptr2 = (self.buffer_ptr - 2) % self.BUFFER_LEN
-        
-        flip_value = np.sum(ss.convolve(self.buffer[bufferptr2], self.DIFF_FILTER, mode='same') * self.buffer[bufferptr1])
+        bufferptr1 = (self.buffer_ptr - 1) % self.BUFFER_LEN ###one of 2 buffer frames to be compared 
+        bufferptr2 = (self.buffer_ptr - 2) % self.BUFFER_LEN ###one of 2 buffer frames to be compared, this one gets convolved with diff_filter 
+        diff_filter = self.DIFF_FILTER #!#improve by considering actual FPS
+        flip_value = np.sum(ss.convolve(self.buffer[bufferptr2], diff_filter, mode='same') * self.buffer[bufferptr1])
         self.oned_stream[:-1] = self.oned_stream[1:]
         self.oned_stream[-1] = flip_value
     
@@ -92,6 +97,7 @@ class FlipDetector:
         ###first frame check
         if self.input_resolution == None:
             self.decide_image_res(image.shape)###decide what resolution to use for all the computation and create filters and buffers accordingly
+            self.START_TIME = time.time()
         elif self.input_resolution != image.shape:
             raise TypeError('Image resolution changed from %s to %s. Abort.'%(self.input_resolution, image.shape))
         
@@ -119,7 +125,7 @@ class CamProcessor:
         self.DRAW_INTERVAL = 5###number of frame interval at which the debugging 1d data curve is drawn.
         self.PLOT_SIZE = 1###an arbitrary relative linear scale. change this if you want to tweak the size of the 1d dta curve's size
         self.CAM_SOURCE = cam_source
-        self.START_TIME = 0.
+        self.START_TIME = 0.###the time of the first input frame, as returned by time.time()
         
     def start_cap(self):###start video capture object
         self.cap = cv2.VideoCapture(self.CAM_SOURCE)
@@ -133,7 +139,7 @@ class CamProcessor:
         plt.ion()##enable dynamic plotting
         self.fig, self.ax = plt.subplots()
         self.plot, = self.ax.plot([], [], lw=2)
-        plt.ylim([-2000000, 2000000])
+        plt.ylim([-1000, 1000])
         
         #start while loop
         self.frame_count = 0
